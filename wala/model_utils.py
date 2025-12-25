@@ -8,8 +8,15 @@ import os
 import json
 import backoff
 import urllib.error
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, logging as hf_logging
+from huggingface_hub.utils import enable_progress_bars, are_progress_bars_disabled
 import re
+
+# Force enable huggingface_hub progress bars
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "0"
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"  # Disable hf_transfer to see progress
+hf_logging.set_verbosity_info()
+enable_progress_bars()
 
 
 class DotDict(dict):
@@ -87,6 +94,18 @@ def load_latent_model(
 
     return model
 
+def get_wala_models_dir():
+    """Get the WaLa models directory in ComfyUI's models folder."""
+    try:
+        import folder_paths
+        models_dir = os.path.join(folder_paths.models_dir, "wala")
+    except ImportError:
+        # Fallback if folder_paths not available
+        models_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "models", "wala")
+    os.makedirs(models_dir, exist_ok=True)
+    return models_dir
+
+
 class Model:
 
     @classmethod
@@ -95,23 +114,53 @@ class Model:
             checkpoint_path = pretrained_model_name_or_path
             json_path = os.path.dirname(checkpoint_path) + "/args.json"
         else:
-            checkpoint_path = hf_hub_download(
-                repo_id=pretrained_model_name_or_path, filename="checkpoint.ckpt"
-            )
-            json_path = hf_hub_download(
-                repo_id=pretrained_model_name_or_path, filename="args.json"
-            )
+            # Check if model exists in ComfyUI models/wala folder
+            models_dir = get_wala_models_dir()
+            # Convert repo_id like "ADSKAILab/WaLa-SV-1B" to folder name "WaLa-SV-1B"
+            model_name = pretrained_model_name_or_path.split("/")[-1]
+            local_model_dir = os.path.join(models_dir, model_name)
+
+            json_path = os.path.join(local_model_dir, "args.json")
+            checkpoint_path = os.path.join(local_model_dir, "checkpoint.ckpt")
+
+            # Check if already downloaded locally
+            if os.path.exists(json_path) and os.path.exists(checkpoint_path):
+                print(f"[ComfyUI-WaLa] Found local model: {local_model_dir}")
+            else:
+                # Download directly to local folder
+                os.makedirs(local_model_dir, exist_ok=True)
+                print(f"[ComfyUI-WaLa] Downloading {model_name} to {local_model_dir}...")
+
+                print(f"[ComfyUI-WaLa] Downloading args.json...")
+                hf_hub_download(
+                    repo_id=pretrained_model_name_or_path,
+                    filename="args.json",
+                    local_dir=local_model_dir,
+                    local_dir_use_symlinks=False,
+                )
+
+                print(f"[ComfyUI-WaLa] Downloading checkpoint.ckpt (~2-4GB)...")
+                hf_hub_download(
+                    repo_id=pretrained_model_name_or_path,
+                    filename="checkpoint.ckpt",
+                    local_dir=local_model_dir,
+                    local_dir_use_symlinks=False,
+                )
+
+                print(f"[ComfyUI-WaLa] Download complete! Saved to {local_model_dir}")
 
         device = (
             torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         )
 
+        print(f"[ComfyUI-WaLa] Loading model from {os.path.dirname(checkpoint_path)}...")
         model = load_latent_model(
             json_path,
             checkpoint_path,
             compile_model=False,
             device=device,
         )
+        print(f"[ComfyUI-WaLa] Model loaded successfully!")
         return model
 
 ########################################################

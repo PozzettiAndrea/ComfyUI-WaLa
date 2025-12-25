@@ -11,7 +11,7 @@ from pytorch_lightning import seed_everything
 import comfy.model_management as mm
 import folder_paths
 
-from .utils import logger, tensor_to_pil, pil_to_tensor, get_temp_output_dir
+from .utils import logger, tensor_to_pil, pil_to_tensor, get_temp_output_dir, process_image_with_mask
 
 
 class WaLaSingleViewTo3D:
@@ -23,39 +23,49 @@ class WaLaSingleViewTo3D:
             "required": {
                 "model": ("WALA_MODEL",),
                 "image": ("IMAGE",),
+                "mask": ("MASK",),
             },
             "optional": {
-                "scale": ("FLOAT", {"default": 1.8, "min": 0.5, "max": 5.0, "step": 0.1,
-                                    "tooltip": "Classifier-free guidance scale. Higher = stronger adherence to input"}),
-                "diffusion_rescale_timestep": ("INT", {"default": 5, "min": 1, "max": 100, "step": 1,
-                                                       "tooltip": "Diffusion rescale timestep for quality control"}),
+                "padding_percent": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 0.5, "step": 0.05,
+                                              "tooltip": "Padding around mask bounding box (0.1 = 10%)"}),
+                "scale": ("FLOAT", {"default": 3.0, "min": 0.5, "max": 10.0, "step": 0.1,
+                                    "tooltip": "Classifier-free guidance scale. Higher = stronger adherence to input. Default: 3.0"}),
+                "diffusion_rescale_timestep": ("INT", {"default": 100, "min": 5, "max": 200, "step": 5,
+                                                       "tooltip": "Number of diffusion steps. Higher = better quality but slower. Default: 100"}),
                 "seed": ("INT", {"default": 42, "min": 0, "max": 2**31 - 1}),
                 "output_format": (["obj", "sdf"], {"default": "obj"}),
             }
         }
 
-    RETURN_TYPES = ("TRIMESH", "STRING")
-    RETURN_NAMES = ("mesh", "mesh_path")
+    RETURN_TYPES = ("TRIMESH", "STRING", "IMAGE")
+    RETURN_NAMES = ("mesh", "mesh_path", "processed_image")
     FUNCTION = "generate"
     CATEGORY = "WaLa"
     DESCRIPTION = """
-Generate 3D mesh from a single image.
+Generate 3D mesh from a single image with mask.
 
 Parameters:
 - model: WaLa model (use WaLa-SV-1B)
 - image: Input image
+- mask: Mask defining the object region
+- padding_percent: Padding around mask bbox (default 10%)
 - scale: Classifier-free guidance scale (default 1.8)
 - diffusion_rescale_timestep: Quality control (default 5)
 - seed: Random seed for reproducibility
 - output_format: obj or sdf
 
+The image is cropped to the mask bounding box with padding,
+composited on white background, and resized to 224x224.
+
 Returns:
 - mesh: Trimesh object for further processing
 - mesh_path: Path to the generated mesh file
+- processed_image: The preprocessed 224x224 image (for debug)
 """
 
-    def generate(self, model, image, scale=1.8, diffusion_rescale_timestep=5, seed=42, output_format="obj"):
+    def generate(self, model, image, mask, padding_percent=0.1, scale=3.0, diffusion_rescale_timestep=100, seed=42, output_format="obj"):
         import trimesh
+        from torchvision.transforms import ToTensor, Normalize
 
         wala_model = model["model"]
         device = model["device"]
@@ -65,24 +75,34 @@ Returns:
 
         logger.info(f"Generating 3D from single view (scale={scale}, timestep={diffusion_rescale_timestep})")
 
-        # Convert ComfyUI tensor to PIL
-        pil_image = tensor_to_pil(image)
+        # Process image with mask: crop to bbox, pad, composite on white, resize to 224
+        pil_image, processed_tensor = process_image_with_mask(
+            image_tensor=image,
+            mask_tensor=mask,
+            padding_percent=padding_percent,
+            target_size=224
+        )
 
-        # Save to temp file for WaLa
+        logger.info(f"Preprocessed image: {pil_image.size} (cropped to mask bbox with {padding_percent*100:.0f}% padding)")
+
+        # Save to temp file for reference
         temp_dir = get_temp_output_dir()
         temp_image_path = os.path.join(temp_dir, "input_image.png")
         pil_image.save(temp_image_path)
 
-        # Prepare data
-        from ..wala.dataset_utils import get_singleview_data, get_image_transform_latent_model
+        # Prepare data - apply WaLa's normalization directly to preprocessed image
+        # WaLa expects: ToTensor() -> Normalize(mean=[0.5], std=[0.5])
+        image_tensor = ToTensor()(pil_image)  # [C, H, W] in [0, 1]
+        image_tensor = Normalize(mean=[0.5], std=[0.5])(image_tensor)  # [-1, 1]
+        image_tensor = image_tensor.to(device).unsqueeze(0).float()  # [1, C, H, W]
 
-        image_transform = get_image_transform_latent_model()
-        data = get_singleview_data(
-            image_file=temp_image_path,
-            image_transform=image_transform,
-            device=device,
-            image_over_white=False,
-        )
+        # Build data dict directly (bypass load_image which does unwanted alpha handling)
+        data = {
+            "images": image_tensor,
+            "img_idx": torch.tensor([0], dtype=torch.long, device=device),
+            "low": torch.zeros((1, 1, 46, 46, 46), device=device),
+            "id": ["wala_input"],
+        }
 
         # Set inference params and run
         wala_model.set_inference_fusion_params(scale, diffusion_rescale_timestep)
@@ -110,7 +130,7 @@ Returns:
         gc.collect()
         torch.cuda.empty_cache()
 
-        return (mesh, str(output_path))
+        return (mesh, str(output_path), processed_tensor)
 
 
 class WaLaMultiViewTo3D:
@@ -135,8 +155,10 @@ class WaLaMultiViewTo3D:
                                    "tooltip": "View index for third image (default 10)"}),
                 "view_3": ("INT", {"default": 26, "min": 0, "max": 100,
                                    "tooltip": "View index for fourth image (default 26)"}),
-                "scale": ("FLOAT", {"default": 1.3, "min": 0.5, "max": 5.0, "step": 0.1}),
-                "diffusion_rescale_timestep": ("INT", {"default": 5, "min": 1, "max": 100, "step": 1}),
+                "scale": ("FLOAT", {"default": 3.0, "min": 0.5, "max": 10.0, "step": 0.1,
+                                    "tooltip": "Classifier-free guidance scale. Default: 3.0"}),
+                "diffusion_rescale_timestep": ("INT", {"default": 100, "min": 5, "max": 200, "step": 5,
+                                                       "tooltip": "Number of diffusion steps. Default: 100"}),
                 "seed": ("INT", {"default": 42, "min": 0, "max": 2**31 - 1}),
                 "output_format": (["obj", "sdf"], {"default": "obj"}),
             }
@@ -163,7 +185,7 @@ View index reference (elevation, azimuth):
 
     def generate(self, model, image_0, image_1, image_2, image_3,
                  view_0=0, view_1=6, view_2=10, view_3=26,
-                 scale=1.3, diffusion_rescale_timestep=5, seed=42, output_format="obj"):
+                 scale=3.0, diffusion_rescale_timestep=100, seed=42, output_format="obj"):
         import trimesh
 
         wala_model = model["model"]
@@ -171,7 +193,7 @@ View index reference (elevation, azimuth):
 
         seed_everything(seed, workers=True)
 
-        logger.info(f"Generating 3D from multi-view (views={[view_0, view_1, view_2, view_3]}, scale={scale})")
+        logger.info(f"Generating 3D from multi-view (views={[view_0, view_1, view_2, view_3]}, scale={scale}, steps={diffusion_rescale_timestep})")
 
         # Save images to temp files
         temp_dir = get_temp_output_dir()
@@ -224,93 +246,136 @@ View index reference (elevation, azimuth):
 
 
 class WaLaDepthMapTo3D:
-    """Generate 3D mesh from depth maps using WaLa."""
+    """Generate 3D mesh from depth map using WaLa."""
 
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "model": ("WALA_MODEL",),
-                "depth_images": ("IMAGE",),
+                "depth_image": ("IMAGE",),
+                "mask": ("MASK",),
             },
             "optional": {
-                "views": ("STRING", {"default": "3,6,10,26",
-                                     "tooltip": "Comma-separated view indices. For 6 views use: 3,6,10,26,49,50"}),
-                "scale": ("FLOAT", {"default": 1.3, "min": 0.5, "max": 5.0, "step": 0.1}),
-                "diffusion_rescale_timestep": ("INT", {"default": 5, "min": 1, "max": 100, "step": 1}),
+                "padding_percent": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 0.5, "step": 0.05,
+                                              "tooltip": "Padding around mask bounding box (0.1 = 10%)"}),
+                "scale": ("FLOAT", {"default": 3.0, "min": 0.5, "max": 10.0, "step": 0.1,
+                                    "tooltip": "Classifier-free guidance scale. Default: 3.0"}),
+                "diffusion_rescale_timestep": ("INT", {"default": 100, "min": 5, "max": 200, "step": 5,
+                                                       "tooltip": "Number of diffusion steps. Default: 100"}),
                 "seed": ("INT", {"default": 42, "min": 0, "max": 2**31 - 1}),
                 "output_format": (["obj", "sdf"], {"default": "obj"}),
             }
         }
 
-    RETURN_TYPES = ("TRIMESH", "STRING")
-    RETURN_NAMES = ("mesh", "mesh_path")
+    RETURN_TYPES = ("TRIMESH", "STRING", "IMAGE")
+    RETURN_NAMES = ("mesh", "mesh_path", "processed_depth")
     FUNCTION = "generate"
     CATEGORY = "WaLa"
     DESCRIPTION = """
-Generate 3D mesh from depth map(s).
+Generate 3D mesh from a depth map with mask.
 
 Parameters:
-- model: WaLa model (use WaLa-DM1-1B, WaLa-DM4-1B, or WaLa-DM6-1B)
-- depth_images: Batched depth map images (1, 4, or 6 images)
-- views: Comma-separated view indices
-  - For 4 views: "3,6,10,26"
-  - For 6 views: "3,6,10,26,49,50"
-  - For single view: "0"
-- scale: Guidance scale (default 1.3, use 1.5 for 6 views)
-- diffusion_rescale_timestep: Quality (default 5, use 10 for 6 views)
+- model: WaLa model (use WaLa-DM1-1B for single depth map)
+- depth_image: Input depth map image
+- mask: Mask defining the object region
+- padding_percent: Padding around mask bbox (default 10%)
+- scale: Guidance scale (default 3.0)
+- diffusion_rescale_timestep: Quality control (default 100)
+
+The depth map is cropped to mask bbox, normalized, and resized to 224x224.
+Depth values are normalized to [0, 1] range within the masked region.
 """
 
-    def generate(self, model, depth_images, views="3,6,10,26",
-                 scale=1.3, diffusion_rescale_timestep=5, seed=42, output_format="obj"):
+    def generate(self, model, depth_image, mask, padding_percent=0.1,
+                 scale=3.0, diffusion_rescale_timestep=100, seed=42, output_format="obj"):
         import trimesh
+        from torchvision.transforms import ToTensor, Normalize
 
         wala_model = model["model"]
         device = model["device"]
 
         seed_everything(seed, workers=True)
 
-        # Parse view indices
-        view_list = [int(v.strip()) for v in views.split(",")]
-        num_views = depth_images.shape[0] if depth_images.dim() == 4 else 1
+        logger.info(f"Generating 3D from depth map (scale={scale}, timestep={diffusion_rescale_timestep})")
 
-        logger.info(f"Generating 3D from {num_views} depth map(s) (views={view_list}, scale={scale})")
+        # Get mask as numpy for later use
+        if mask.dim() == 3:
+            mask_np = mask[0].cpu().numpy()
+        else:
+            mask_np = mask.cpu().numpy()
+
+        # First, get the depth values and normalize ONLY within the masked region
+        if depth_image.dim() == 4:
+            depth_np_full = depth_image[0].cpu().numpy()
+        else:
+            depth_np_full = depth_image.cpu().numpy()
+
+        # Convert to grayscale (average of RGB channels)
+        if depth_np_full.shape[-1] == 3:
+            depth_gray_full = np.mean(depth_np_full, axis=-1)
+        else:
+            depth_gray_full = depth_np_full.squeeze()
+
+        # Get min/max ONLY from masked region (where mask > 0.5)
+        mask_binary = mask_np > 0.5
+        masked_depth_values = depth_gray_full[mask_binary]
+
+        if len(masked_depth_values) > 0:
+            depth_min = masked_depth_values.min()
+            depth_max = masked_depth_values.max()
+            logger.info(f"Depth in masked region: min={depth_min:.4f}, max={depth_max:.4f}, mean={masked_depth_values.mean():.4f}")
+        else:
+            depth_min, depth_max = 0.0, 1.0
+            logger.warning("No masked pixels found, using default range [0, 1]")
+
+        # Normalize depth values based on masked region's min/max
+        if depth_max > depth_min:
+            depth_normalized = (depth_gray_full - depth_min) / (depth_max - depth_min)
+        else:
+            depth_normalized = np.zeros_like(depth_gray_full)
+
+        # Clip to [0, 1] range
+        depth_normalized = np.clip(depth_normalized, 0.0, 1.0)
+
+        # Convert back to [0, 255] and create RGB
+        depth_normalized_uint8 = (depth_normalized * 255).astype(np.uint8)
+        depth_rgb_full = np.stack([depth_normalized_uint8, depth_normalized_uint8, depth_normalized_uint8], axis=-1)
+
+        # Now create tensors with normalized depth for process_image_with_mask
+        depth_tensor_normalized = torch.from_numpy(depth_rgb_full.astype(np.float32) / 255.0).unsqueeze(0)
+
+        # Process with mask - use BLACK background for depth maps
+        pil_depth, processed_tensor = process_image_with_mask(
+            image_tensor=depth_tensor_normalized,
+            mask_tensor=mask,
+            padding_percent=padding_percent,
+            target_size=224,
+            background_color="black"
+        )
+
+        # Verify the processed depth
+        depth_check = np.array(pil_depth.convert('L')).astype(np.float32)
+        logger.info(f"Processed depth: min={depth_check.min():.2f}, max={depth_check.max():.2f}, mean={depth_check.mean():.2f}")
 
         temp_dir = get_temp_output_dir()
+        temp_depth_path = os.path.join(temp_dir, "input_depth.png")
+        pil_depth.save(temp_depth_path)
 
-        # Save depth images
-        image_paths = []
-        if depth_images.dim() == 4:
-            for i in range(depth_images.shape[0]):
-                pil_image = tensor_to_pil(depth_images[i:i+1])
-                path = os.path.join(temp_dir, f"depth_{i}.png")
-                pil_image.save(path)
-                image_paths.append(path)
-        else:
-            pil_image = tensor_to_pil(depth_images)
-            path = os.path.join(temp_dir, "depth_0.png")
-            pil_image.save(path)
-            image_paths.append(path)
+        # Apply WaLa's standard transform
+        depth_tensor = ToTensor()(pil_depth)  # [C, H, W] in [0, 1]
+        logger.info(f"Depth tensor after ToTensor: min={depth_tensor.min():.4f}, max={depth_tensor.max():.4f}")
+        depth_tensor = Normalize(mean=[0.5], std=[0.5])(depth_tensor)  # [-1, 1]
+        logger.info(f"Depth tensor after Normalize: min={depth_tensor.min():.4f}, max={depth_tensor.max():.4f}")
+        depth_tensor = depth_tensor.to(device).unsqueeze(0).float()  # [1, C, H, W]
 
-        from ..wala.dataset_utils import get_mv_dm_data, get_sv_dm_data, get_image_transform_latent_model
-
-        image_transform = get_image_transform_latent_model()
-
-        # Use appropriate data loader based on number of views
-        if len(image_paths) == 1:
-            data = get_sv_dm_data(
-                image_file=image_paths[0],
-                image_transform=image_transform,
-                device=device,
-                image_over_white=False,
-            )
-        else:
-            data = get_mv_dm_data(
-                image_files=image_paths,
-                views=view_list[:len(image_paths)],
-                image_transform=image_transform,
-                device=device,
-            )
+        # Build data dict for depth map
+        data = {
+            "depth": depth_tensor,
+            "img_idx": torch.tensor([0], dtype=torch.long, device=device),
+            "low": torch.zeros((1, 1, 46, 46, 46), device=device),
+            "id": ["wala_depth_input"],
+        }
 
         wala_model.set_inference_fusion_params(scale, diffusion_rescale_timestep)
 
@@ -332,10 +397,14 @@ Parameters:
         else:
             mesh = None
 
+        # Create preview tensor from processed depth
+        preview_np = np.array(pil_depth).astype(np.float32) / 255.0
+        preview_tensor = torch.from_numpy(preview_np).unsqueeze(0)
+
         gc.collect()
         torch.cuda.empty_cache()
 
-        return (mesh, str(output_path))
+        return (mesh, str(output_path), preview_tensor)
 
 
 class WaLaPointcloudTo3D:
@@ -350,8 +419,10 @@ class WaLaPointcloudTo3D:
                                                "tooltip": "Path to HDF5 (.h5df) pointcloud file with 'points' key"}),
             },
             "optional": {
-                "scale": ("FLOAT", {"default": 1.3, "min": 0.5, "max": 5.0, "step": 0.1}),
-                "diffusion_rescale_timestep": ("INT", {"default": 8, "min": 1, "max": 100, "step": 1}),
+                "scale": ("FLOAT", {"default": 3.0, "min": 0.5, "max": 10.0, "step": 0.1,
+                                    "tooltip": "Classifier-free guidance scale. Default: 3.0"}),
+                "diffusion_rescale_timestep": ("INT", {"default": 100, "min": 5, "max": 200, "step": 5,
+                                                       "tooltip": "Number of diffusion steps. Default: 100"}),
                 "seed": ("INT", {"default": 42, "min": 0, "max": 2**31 - 1}),
                 "output_format": (["obj", "sdf"], {"default": "obj"}),
             }
@@ -374,7 +445,7 @@ Parameters:
 The HDF5 file should contain points in normalized coordinates.
 """
 
-    def generate(self, model, pointcloud_file, scale=1.3, diffusion_rescale_timestep=8, seed=42, output_format="obj"):
+    def generate(self, model, pointcloud_file, scale=3.0, diffusion_rescale_timestep=100, seed=42, output_format="obj"):
         import trimesh
 
         if not pointcloud_file or not os.path.exists(pointcloud_file):

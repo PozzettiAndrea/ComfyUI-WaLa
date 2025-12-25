@@ -1,0 +1,212 @@
+{
+  "id": "de4598d0-9a62-49ce-9e9f-318b85b2902f",
+  "revision": 0,
+  "last_node_id": 5,
+  "last_link_id": 3,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadWaLaModel",
+      "pos": [
+        -446.47132990494345,
+        34.27550637353187
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "WALA_MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "PozzettiAndrea/ComfyUI-WaLa",
+        "ver": "60015b7140af894f9ec7db81cf20ad8506daa97d",
+        "Node name for S&R": "LoadWaLaModel"
+      },
+      "widgets_values": [
+        "ADSKAILab/WaLa-SV-1B"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "LoadImage",
+      "pos": [
+        -523.7265512103378,
+        214.65629271448975
+      ],
+      "size": [
+        282.798828125,
+        314
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.6.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "matte.png",
+        "image"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "WaLaSingleViewTo3D",
+      "pos": [
+        -118.56781175252065,
+        57.269720199029244
+      ],
+      "size": [
+        314.7265625,
+        174
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "WALA_MODEL",
+          "link": 1
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mesh",
+          "type": "TRIMESH",
+          "links": [
+            3
+          ]
+        },
+        {
+          "name": "mesh_path",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "PozzettiAndrea/ComfyUI-WaLa",
+        "ver": "60015b7140af894f9ec7db81cf20ad8506daa97d",
+        "Node name for S&R": "WaLaSingleViewTo3D"
+      },
+      "widgets_values": [
+        1.8,
+        5,
+        1741612820,
+        "randomize",
+        "obj"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "GeomPackPreviewMeshVTK",
+      "pos": [
+        278.39247493579296,
+        22.38058424200983
+      ],
+      "size": [
+        512,
+        714
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "trimesh",
+          "shape": 7,
+          "type": "TRIMESH",
+          "link": 3
+        },
+        {
+          "name": "voxelgrid",
+          "shape": 7,
+          "type": "VOXELGRID",
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfyui-geometrypack",
+        "ver": "718641ff39a8c4e18e9f8f9188cac69839b8d0d4",
+        "Node name for S&R": "GeomPackPreviewMeshVTK"
+      },
+      "widgets_values": [
+        "fields",
+        ""
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "WALA_MODEL"
+    ],
+    [
+      2,
+      4,
+      0,
+      2,
+      1,
+      "IMAGE"
+    ],
+    [
+      3,
+      2,
+      0,
+      5,
+      0,
+      "TRIMESH"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7904502144728969,
+      "offset": [
+        1041.0543569503677,
+        388.5402986330713
+      ]
+    },
+    "workflowRendererVersion": "LG",
+    "frontendVersion": "1.35.9"
+  },
+  "version": 0.4
+}

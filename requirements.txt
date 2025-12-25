@@ -1,0 +1,31 @@
+# Core ML dependencies
+pytorch_lightning
+diffusers
+transformers
+omegaconf
+timm
+einops
+
+# Wavelet processing
+pytorch-wavelets
+PyWavelets
+
+# 3D processing
+trimesh
+open3d
+PyMCubes
+
+# Image processing
+scikit-image
+
+# Utilities
+tqdm
+h5py
+ftfy
+regex
+backoff
+fasteners
+huggingface_hub
+matplotlib
+seaborn
+boto3

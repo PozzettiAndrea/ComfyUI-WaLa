@@ -5,8 +5,11 @@ import backoff
 import torch
 from mvdream_module import MVDreamModule
 from latent_module import Trainer_Condition_Network
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, logging as hf_logging
 import os
+
+# Enable huggingface_hub progress bars
+hf_logging.set_verbosity_info()
 
 
 def load_mvdream_model(
@@ -19,10 +22,14 @@ def load_mvdream_model(
         checkpoint_path = pretrained_model_name_or_path
         json_path = os.path.dirname(pretrained_model_name_or_path) + "/args.json"
     else:
+        print(f"[ComfyUI-WaLa] Downloading MVDream checkpoint from {pretrained_model_name_or_path}...")
+        print(f"[ComfyUI-WaLa] This may take a while for large models...")
         checkpoint_path = hf_hub_download(
             repo_id=pretrained_model_name_or_path, filename="checkpoint.ckpt"
         )
+        print(f"[ComfyUI-WaLa] Download complete!")
 
+    print(f"[ComfyUI-WaLa] Loading MVDream model...")
     model = MVDreamModule.load_from_checkpoint(checkpoint_path=checkpoint_path)
 
     if device is not None:
@@ -30,6 +37,7 @@ def load_mvdream_model(
     if eval:
         model.eval()
 
+    print(f"[ComfyUI-WaLa] MVDream model loaded successfully!")
     return model
 
 
