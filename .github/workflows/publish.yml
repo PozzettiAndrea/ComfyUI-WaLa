@@ -1,0 +1,23 @@
+name: Publish to ComfyUI Registry
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'pyproject.toml'
+    branches:
+      - main
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Publish to ComfyUI Registry
+        uses: comfyanonymous/publish-node-action@v1
+        with:
+          token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
