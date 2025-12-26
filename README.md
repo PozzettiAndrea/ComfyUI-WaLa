@@ -2,7 +2,7 @@
 
 ComfyUI custom nodes for [WaLa](https://github.com/AutodeskAILab/WaLa) - a billion-parameter 3D generative model.
 
-> **Note:** Only **single-view image** and **depth map** inputs are tested. Multi-view, pointcloud, and text-to-3D modes are included but not actively maintained. For those use cases, consider [TRELLIS2](https://github.com/microsoft/TRELLIS) which produces significantly better results.
+> **Note:** Only **single-view image** and **depth map** inputs are tested. Multi-view, pointcloud, and text-to-3D modes are included but not actively maintained. For those use cases, consider [TRELLIS2](https://github.com/PozzettiAndrea/ComfyUI-TRELLIS2) which produces significantly better results.
 
 ## Workflows
 
