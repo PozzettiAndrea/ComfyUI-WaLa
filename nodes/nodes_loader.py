@@ -21,6 +21,10 @@ MVDREAM_MODELS = [
     'ADSKAILab/WaLa-MVDream-RGB4',  # Text to 4 multi-view RGB
 ]
 
+# Model caches - keeps loaded models in memory when keep_model_loaded is enabled
+_wala_model_cache = {}
+_mvdream_model_cache = {}
+
 
 class LoadWaLaModel:
     """Load WaLa model for 3D generation."""
@@ -30,6 +34,10 @@ class LoadWaLaModel:
         return {
             "required": {
                 "model_name": (WALA_MODELS, {"default": 'ADSKAILab/WaLa-SV-1B'}),
+                "keep_model_loaded": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Keep model in memory between runs for faster subsequent generations"
+                }),
             },
         }
 
@@ -51,8 +59,14 @@ Available models:
 Models are downloaded from HuggingFace on first use.
 """
 
-    def loadmodel(self, model_name='ADSKAILab/WaLa-SV-1B'):
+    def loadmodel(self, model_name='ADSKAILab/WaLa-SV-1B', keep_model_loaded=True):
         device = mm.get_torch_device()
+        cache_key = f"{model_name}_{device}"
+
+        # Check cache first
+        if keep_model_loaded and cache_key in _wala_model_cache:
+            logger.info(f"Using cached WaLa model: {model_name}")
+            return (_wala_model_cache[cache_key],)
 
         logger.info(f"Loading WaLa model: {model_name}")
 
@@ -68,6 +82,11 @@ Models are downloaded from HuggingFace on first use.
             "device": model.device,
         }
 
+        # Cache if requested
+        if keep_model_loaded:
+            _wala_model_cache[cache_key] = wala_model
+            logger.info(f"WaLa model cached for future use")
+
         return (wala_model,)
 
 
@@ -79,6 +98,10 @@ class LoadWaLaMVDream:
         return {
             "required": {
                 "model_name": (MVDREAM_MODELS, {"default": 'ADSKAILab/WaLa-MVDream-DM6'}),
+                "keep_model_loaded": ("BOOLEAN", {
+                    "default": True,
+                    "tooltip": "Keep model in memory between runs for faster subsequent generations"
+                }),
             },
         }
 
@@ -99,8 +122,14 @@ the corresponding WaLa model (DM6 or RGB4) to create 3D meshes.
 Models are downloaded from HuggingFace on first use.
 """
 
-    def loadmodel(self, model_name='ADSKAILab/WaLa-MVDream-DM6'):
+    def loadmodel(self, model_name='ADSKAILab/WaLa-MVDream-DM6', keep_model_loaded=True):
         device = mm.get_torch_device()
+        cache_key = f"{model_name}_{device}"
+
+        # Check cache first
+        if keep_model_loaded and cache_key in _mvdream_model_cache:
+            logger.info(f"Using cached WaLa MVDream model: {model_name}")
+            return (_mvdream_model_cache[cache_key],)
 
         logger.info(f"Loading WaLa MVDream model: {model_name}")
 
@@ -118,6 +147,11 @@ Models are downloaded from HuggingFace on first use.
             "model_name": model_name,
             "device": device,
         }
+
+        # Cache if requested
+        if keep_model_loaded:
+            _mvdream_model_cache[cache_key] = mvdream_model
+            logger.info(f"WaLa MVDream model cached for future use")
 
         return (mvdream_model,)
 

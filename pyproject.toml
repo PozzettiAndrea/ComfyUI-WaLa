@@ -1,0 +1,41 @@
+[project]
+name = "comfyui-wala"
+version = "0.1.0"
+description = "ComfyUI nodes for WaLa billion-parameter 3D generative model. Not very impressed with this one, TRELLIS2 is better. Might be interesting for multi-view"
+authors = [{name = "ComfyUI-WaLa Contributors"}]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["comfyui", "3d-generation", "mesh", "depth-map", "single-view"]
+
+dependencies = [
+    "torch>=2.0.0",
+    "pytorch_lightning",
+    "diffusers",
+    "transformers",
+    "omegaconf",
+    "timm",
+    "einops",
+    "pytorch-wavelets",
+    "PyWavelets",
+    "trimesh",
+    "open3d",
+    "PyMCubes",
+    "scikit-image",
+    "tqdm",
+    "h5py",
+    "ftfy",
+    "regex",
+    "huggingface_hub",
+]
+
+[project.urls]
+Homepage = "https://github.com/PozzettiAndrea/ComfyUI-WaLa"
+Repository = "https://github.com/PozzettiAndrea/ComfyUI-WaLa"
+Issues = "https://github.com/PozzettiAndrea/ComfyUI-WaLa/issues"
+
+# ComfyUI Registry configuration
+[tool.comfy]
+PublisherId = "pznodes"
+DisplayName = "WaLa"
+Icon = ""
