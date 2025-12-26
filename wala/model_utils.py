@@ -136,7 +136,6 @@ class Model:
                     repo_id=pretrained_model_name_or_path,
                     filename="args.json",
                     local_dir=local_model_dir,
-                    local_dir_use_symlinks=False,
                 )
 
                 print(f"[ComfyUI-WaLa] Downloading checkpoint.ckpt (~2-4GB)...")
@@ -144,8 +143,13 @@ class Model:
                     repo_id=pretrained_model_name_or_path,
                     filename="checkpoint.ckpt",
                     local_dir=local_model_dir,
-                    local_dir_use_symlinks=False,
                 )
+
+                # Clean up .cache folder created by hf_hub_download
+                cache_dir = os.path.join(local_model_dir, ".cache")
+                if os.path.exists(cache_dir):
+                    import shutil
+                    shutil.rmtree(cache_dir)
 
                 print(f"[ComfyUI-WaLa] Download complete! Saved to {local_model_dir}")
 

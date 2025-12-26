@@ -12,6 +12,18 @@ import os
 hf_logging.set_verbosity_info()
 
 
+def get_wala_models_dir():
+    """Get the WaLa models directory in ComfyUI's models folder."""
+    try:
+        import folder_paths
+        models_dir = os.path.join(folder_paths.models_dir, "wala")
+    except ImportError:
+        # Fallback if folder_paths not available
+        models_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "models", "wala")
+    os.makedirs(models_dir, exist_ok=True)
+    return models_dir
+
+
 def load_mvdream_model(
     pretrained_model_name_or_path,
     device=None,
@@ -20,14 +32,33 @@ def load_mvdream_model(
 
     if os.path.isfile(pretrained_model_name_or_path):
         checkpoint_path = pretrained_model_name_or_path
-        json_path = os.path.dirname(pretrained_model_name_or_path) + "/args.json"
     else:
-        print(f"[ComfyUI-WaLa] Downloading MVDream checkpoint from {pretrained_model_name_or_path}...")
-        print(f"[ComfyUI-WaLa] This may take a while for large models...")
-        checkpoint_path = hf_hub_download(
-            repo_id=pretrained_model_name_or_path, filename="checkpoint.ckpt"
-        )
-        print(f"[ComfyUI-WaLa] Download complete!")
+        # Check if model exists in ComfyUI models/wala folder
+        models_dir = get_wala_models_dir()
+        model_name = pretrained_model_name_or_path.split("/")[-1]
+        local_model_dir = os.path.join(models_dir, model_name)
+        checkpoint_path = os.path.join(local_model_dir, "checkpoint.ckpt")
+
+        if os.path.exists(checkpoint_path):
+            print(f"[ComfyUI-WaLa] Found local MVDream model: {local_model_dir}")
+        else:
+            # Download directly to local folder
+            os.makedirs(local_model_dir, exist_ok=True)
+            print(f"[ComfyUI-WaLa] Downloading MVDream {model_name} to {local_model_dir}...")
+
+            hf_hub_download(
+                repo_id=pretrained_model_name_or_path,
+                filename="checkpoint.ckpt",
+                local_dir=local_model_dir,
+            )
+
+            # Clean up .cache folder
+            cache_dir = os.path.join(local_model_dir, ".cache")
+            if os.path.exists(cache_dir):
+                import shutil
+                shutil.rmtree(cache_dir)
+
+            print(f"[ComfyUI-WaLa] Download complete! Saved to {local_model_dir}")
 
     print(f"[ComfyUI-WaLa] Loading MVDream model...")
     model = MVDreamModule.load_from_checkpoint(checkpoint_path=checkpoint_path)
