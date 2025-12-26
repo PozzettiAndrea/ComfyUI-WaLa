@@ -1,42 +1,9 @@
 {
   "id": "de4598d0-9a62-49ce-9e9f-318b85b2902f",
   "revision": 0,
-  "last_node_id": 16,
-  "last_link_id": 25,
+  "last_node_id": 23,
+  "last_link_id": 39,
   "nodes": [
-    {
-      "id": 1,
-      "type": "LoadWaLaModel",
-      "pos": [
-        -446.47132990494345,
-        34.27550637353187
-      ],
-      "size": [
-        270,
-        58
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "WALA_MODEL",
-          "links": [
-            9
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "PozzettiAndrea/ComfyUI-WaLa",
-        "ver": "60015b7140af894f9ec7db81cf20ad8506daa97d",
-        "Node name for S&R": "LoadWaLaModel"
-      },
-      "widgets_values": [
-        "ADSKAILab/WaLa-SV-1B"
-      ]
-    },
     {
       "id": 16,
       "type": "WaLaRemoveBackground",
@@ -49,7 +16,7 @@
         126
       ],
       "flags": {},
-      "order": 2,
+      "order": 3,
       "mode": 0,
       "inputs": [
         {
@@ -68,8 +35,8 @@
           "name": "mask",
           "type": "MASK",
           "links": [
-            23,
-            24
+            24,
+            31
           ]
         }
       ],
@@ -85,6 +52,72 @@
       ]
     },
     {
+      "id": 18,
+      "type": "WaLaDepthMapTo3D",
+      "pos": [
+        -103.50717475783702,
+        41.22715437777933
+      ],
+      "size": [
+        314.7265625,
+        218
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "WALA_MODEL",
+          "link": 29
+        },
+        {
+          "name": "depth_image",
+          "type": "IMAGE",
+          "link": 39
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 31
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mesh",
+          "type": "TRIMESH",
+          "links": [
+            33
+          ]
+        },
+        {
+          "name": "mesh_path",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "processed_depth",
+          "type": "IMAGE",
+          "links": [
+            32
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "PozzettiAndrea/ComfyUI-WaLa",
+        "ver": "80f024fdcec94c0a8eaa8c248baed287f437e3fa",
+        "Node name for S&R": "WaLaDepthMapTo3D"
+      },
+      "widgets_values": [
+        0.1,
+        3,
+        100,
+        42,
+        "fixed",
+        "obj"
+      ]
+    },
+    {
       "id": 4,
       "type": "LoadImage",
       "pos": [
@@ -96,7 +129,7 @@
         314
       ],
       "flags": {},
-      "order": 1,
+      "order": 0,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -104,8 +137,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            21,
-            25
+            21
           ]
         },
         {
@@ -128,8 +160,8 @@
       "id": 9,
       "type": "MaskPreview",
       "pos": [
-        -50.11298718885083,
-        635.436841112182
+        -153.28324482961904,
+        596.9693246382366
       ],
       "size": [
         241.59430029234352,
@@ -154,91 +186,126 @@
       "widgets_values": []
     },
     {
-      "id": 11,
-      "type": "WaLaSingleViewTo3D",
+      "id": 23,
+      "type": "LoadImage",
       "pos": [
-        -104.71215446087554,
-        46.06310195139763
+        -805.2206608862513,
+        587.0279846122796
       ],
       "size": [
-        314.7265625,
-        218
+        282.798828125,
+        314
       ],
       "flags": {},
-      "order": 3,
+      "order": 1,
       "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "WALA_MODEL",
-          "link": 9
-        },
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 25
-        },
-        {
-          "name": "mask",
-          "type": "MASK",
-          "link": 23
-        }
-      ],
+      "inputs": [],
       "outputs": [
         {
-          "name": "mesh",
-          "type": "TRIMESH",
+          "name": "IMAGE",
+          "type": "IMAGE",
           "links": [
-            12
+            39
           ]
         },
         {
-          "name": "mesh_path",
-          "type": "STRING",
+          "name": "MASK",
+          "type": "MASK",
           "links": null
-        },
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.6.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "shiny_2_depth.png",
+        "image"
+      ]
+    },
+    {
+      "id": 12,
+      "type": "PreviewImage",
+      "pos": [
+        117.99820462093764,
+        324.57438971172894
+      ],
+      "size": [
+        140,
+        246
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
         {
-          "name": "processed_image",
+          "name": "images",
           "type": "IMAGE",
+          "link": 32
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.6.0",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 1,
+      "type": "LoadWaLaModel",
+      "pos": [
+        -446.47132990494345,
+        34.27550637353187
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "WALA_MODEL",
           "links": [
-            14
+            29
           ]
         }
       ],
       "properties": {
         "aux_id": "PozzettiAndrea/ComfyUI-WaLa",
         "ver": "60015b7140af894f9ec7db81cf20ad8506daa97d",
-        "Node name for S&R": "WaLaSingleViewTo3D"
+        "Node name for S&R": "LoadWaLaModel"
       },
       "widgets_values": [
-        0.15,
-        3,
-        100,
-        42,
-        "fixed",
-        "obj"
+        "ADSKAILab/WaLa-DM1-1B"
       ]
     },
     {
       "id": 5,
       "type": "GeomPackPreviewMeshVTK",
       "pos": [
-        278.39247493579296,
-        22.38058424200983
+        278.7168672040202,
+        43.17146141005874
       ],
       "size": [
         512,
         722
       ],
       "flags": {},
-      "order": 5,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
           "name": "trimesh",
           "shape": 7,
           "type": "TRIMESH",
-          "link": 12
+          "link": 33
         },
         {
           "name": "voxelgrid",
@@ -257,62 +324,9 @@
         "fields",
         ""
       ]
-    },
-    {
-      "id": 12,
-      "type": "PreviewImage",
-      "pos": [
-        117.99820462093764,
-        324.57438971172894
-      ],
-      "size": [
-        140,
-        246
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 14
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.6.0",
-        "Node name for S&R": "PreviewImage"
-      },
-      "widgets_values": []
     }
   ],
   "links": [
-    [
-      9,
-      1,
-      0,
-      11,
-      0,
-      "WALA_MODEL"
-    ],
-    [
-      12,
-      11,
-      0,
-      5,
-      0,
-      "TRIMESH"
-    ],
-    [
-      14,
-      11,
-      2,
-      12,
-      0,
-      "IMAGE"
-    ],
     [
       21,
       4,
@@ -320,14 +334,6 @@
       16,
       0,
       "IMAGE"
-    ],
-    [
-      23,
-      16,
-      1,
-      11,
-      2,
-      "MASK"
     ],
     [
       24,
@@ -338,10 +344,42 @@
       "MASK"
     ],
     [
-      25,
-      4,
+      29,
+      1,
       0,
-      11,
+      18,
+      0,
+      "WALA_MODEL"
+    ],
+    [
+      31,
+      16,
+      1,
+      18,
+      2,
+      "MASK"
+    ],
+    [
+      32,
+      18,
+      2,
+      12,
+      0,
+      "IMAGE"
+    ],
+    [
+      33,
+      18,
+      0,
+      5,
+      0,
+      "TRIMESH"
+    ],
+    [
+      39,
+      23,
+      0,
+      18,
       1,
       "IMAGE"
     ]
@@ -350,10 +388,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.7881871524839137,
+      "scale": 0.9537064545055387,
       "offset": [
-        1048.6596412784122,
-        244.41150141672105
+        922.7987348958197,
+        205.92505828490158
       ]
     },
     "frontendVersion": "1.35.9",
