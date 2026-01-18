@@ -8,26 +8,7 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 keywords = ["comfyui", "3d-generation", "mesh", "depth-map", "single-view"]
 
-dependencies = [
-    "torch>=2.0.0",
-    "pytorch_lightning",
-    "diffusers",
-    "transformers",
-    "omegaconf",
-    "timm",
-    "einops",
-    "pytorch-wavelets",
-    "PyWavelets",
-    "trimesh",
-    "open3d",
-    "PyMCubes",
-    "scikit-image",
-    "tqdm",
-    "h5py",
-    "ftfy",
-    "regex",
-    "huggingface_hub",
-]
+dynamic = ["dependencies"]
 
 [project.urls]
 Homepage = "https://github.com/PozzettiAndrea/ComfyUI-WaLa"
@@ -35,6 +16,13 @@ Repository = "https://github.com/PozzettiAndrea/ComfyUI-WaLa"
 Issues = "https://github.com/PozzettiAndrea/ComfyUI-WaLa/issues"
 
 # ComfyUI Registry configuration
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
 [tool.comfy]
 PublisherId = "pznodes"
 DisplayName = "WaLa"
